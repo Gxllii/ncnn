@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "option.h"
-
+#include "mat.h"
 #include "cpu.h"
 
 namespace ncnn {
@@ -50,6 +50,11 @@ Option::Option()
     use_image_storage = false;
 
     use_bf16_storage = false;
+
+    // test
+    use_wino_flag = 1;
+    use_wino_quant = 32;
+    use_net_quant = 32;
 }
 
 } // namespace ncnn

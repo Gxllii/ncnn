@@ -103,6 +103,15 @@ public:
     // enable bf16 data type for storage
     // improve most operator performace on all arm devices, may consume more memory
     bool use_bf16_storage;
+
+    // use winograd
+    int use_wino_flag;
+
+    // quantization in wino-domain
+    int use_wino_quant;
+
+    // quantization outside wino-domain
+    int use_net_quant;
 };
 
 } // namespace ncnn

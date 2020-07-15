@@ -526,14 +526,17 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     // convolv with NxN kernel
     // value = value + bias
 
-    if (opt.use_int8_inference && weight_data.elemsize == (size_t)1u)
-    {
-        return forward_int8_x86(bottom_blob, top_blob, opt);
-    }
+    int kernel_size = kernel_w * kernel_h;
+    int num_input = weight_data_size / kernel_size / num_output;
 
     if (bottom_blob.dims != 3)
     {
         return Convolution::forward(bottom_blob, top_blob, opt);
+    }
+
+    if (opt.use_int8_inference && weight_data.elemsize == (size_t)1u)
+    {
+        return forward_int8_x86(bottom_blob, top_blob, opt);
     }
 
     if ((!support_packing || !opt.use_packing_layout) && (dilation_w > 1 || dilation_h > 1) && (stride_w > 1 || stride_h > 1))
@@ -860,14 +863,17 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     {
         if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
         {
-            if (use_winograd3x3 && outw >= 8 && outh >= 8)
+            //if (use_winograd3x3 && outw >= 8 && outh >= 8)
+            if (opt.use_wino_flag > 0 && use_winograd3x3 && outw >= 8 && outh >= 8)
             {
-                conv3x3s1_winograd23_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, opt);
+                conv3x3s1_winograd23_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, opt, weight_data, num_input, num_output);
+                //conv3x3s1_winograd23_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, opt);
                 //             conv3x3s1_winograd43_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd43_data, bias_data, opt);
             }
             else
             {
-                conv_im2col_sgemm_sse(bottom_blob_bordered, top_blob, weight_sgemm_data, bias_data, kernel_w, kernel_h, stride_w, stride_h, opt);
+                conv3x3s1_sse(bottom_blob_bordered, top_blob, weight_data, bias_data, opt); 
+                //conv_im2col_sgemm_sse(bottom_blob_bordered, top_blob, weight_sgemm_data, bias_data, kernel_w, kernel_h, stride_w, stride_h, opt);
             }
 
             if (activation)

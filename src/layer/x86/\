@@ -325,12 +325,12 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     bottom_t = std::min(bottom_s, bottom_t);
 
     float kernel_q = 127/kernel_t;
-    float bottom_q = 127/bottom_t;
+    //float bottom_q = 127/bottom_t;
     //float kernel_q = 1;
-    //float bottom_q = 1;
-    //if (bottom_min > -0.0001 && bottom_min < 0.0001) {
-    //    bottom_q = 255/bottom_t;
-    //} 
+    float bottom_q = 1;
+    if (bottom_min > -0.0001 && bottom_min < 0.0001) {
+        bottom_q = 255/bottom_t;
+    } 
 
     if (opt.use_net_quant == 32) {
         printf("***input/output: fp32***\n");
@@ -353,9 +353,23 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
             //printf("%f %f\n", _bias[i], _bias[i] * kernel_q * bottom_q);
             _bias[i] = _bias[i] * kernel_q * bottom_q;
         }
-        printf("quantize bias [DONE]\n");
+
+        //float bottom_max2 = FLT_MIN;
+        //float bottom_min2 = FLT_MAX;
+        //for (int i = 0; i < bottom_size; i++)
+        //{
+        //    if (bottom_blob[i] > bottom_max2) bottom_max2 = bottom_blob[i];
+        //    if (bottom_blob[i] < bottom_min2) bottom_min2 = bottom_blob[i];
+        //}
+        //printf("quant_input min and max: %f : %f\n", bottom_min2, bottom_max2);
     }
-   
+
+
+    if (opt.use_wino_quant == 32)
+        printf("***Convolution: wino23_fp32***\n");
+    else if (opt.use_wino_quant <= 8)
+        printf("***Convolution: wino23_int%d***\n", opt.use_wino_quant);
+    
     int w = bottom_blob.w;
     int h = bottom_blob.h;
     int inch = bottom_blob.c;
@@ -390,11 +404,6 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
 
     const float* bias = _bias;
 
-    if (opt.use_wino_quant == 32)
-        printf("***Convolution: wino23_fp32***\n");
-    else if (opt.use_wino_quant <= 8)
-        printf("***Convolution: wino23_int%d***\n", opt.use_wino_quant);
- 
     // BEGIN transform input
     Mat bottom_blob_tm;
     {
