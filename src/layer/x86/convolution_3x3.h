@@ -21,73 +21,6 @@ static void conv3x3s1_sse(const Mat& bottom_blob_original, Mat& top_blob, const 
     Mat bottom_blob(bottom_blob_original);
     Mat _kernel(_kernel_original);
     Mat _bias(_bias_original);
-
-    if (opt.use_net_quant == 32)
-        printf("***Convolution: conv_fp32***\n");
-    else if (opt.use_net_quant <= 8)
-        printf("***Convolution: conv_int***\n");
- 
-    float kernel_max = FLT_MIN;
-    float kernel_min = FLT_MAX; 
-    int kernel_size = _kernel.w * _kernel.h * _kernel.c;
-    for (int i = 0; i < kernel_size; i++)
-    {
-        if (_kernel[i] > kernel_max) kernel_max = _kernel[i];
-        if (_kernel[i] < kernel_min) kernel_min = _kernel[i];
-    }
-
-    float bottom_max = FLT_MIN;
-    float bottom_min = FLT_MAX;
-    int bottom_size = bottom_blob.w * bottom_blob.h * bottom_blob.c; 
-    for (int i = 0; i < bottom_size; i++)
-    {
-        if (bottom_blob[i] > bottom_max) bottom_max = bottom_blob[i];
-        if (bottom_blob[i] < bottom_min) bottom_min = bottom_blob[i];
-    }
-
-    float bottom_t = std::max(fabs(bottom_min), fabs(bottom_max));
-    float kernel_t = std::max(fabs(kernel_min), fabs(kernel_max));
-
-    float kernel_q = 127/kernel_t;
-    float bottom_q = 127/bottom_t;
-
-    //kernel_q = 1;
-    bottom_q = 1;
-
-    printf("kernel size: %d\n", kernel_size);
-    printf("input size: %d\n", bottom_size);
-    printf("kernel min and max: %f : %f\n", kernel_min, kernel_max);
-    printf("input min and max: %f : %f\n", bottom_min, bottom_max);
-    printf("kernel_t: %f\n", kernel_t);
-    printf("input_t: %f\n", bottom_t);
-    printf("kernel_q: %f\n", kernel_q);
-    printf("input_q: %f\n", bottom_q);
- 
-    if (opt.use_net_quant == 8)
-    {
-        for (int i = 0; i < bottom_size; i++) 
-        { 
-            bottom_blob[i] = round(bottom_blob[i] * bottom_q);
-        }
-        printf("quantize input [DONE]\n");
-
-        for (int i = 0; i < kernel_size; i++) {
-            printf("%f %f\n", _kernel[i], round(_kernel[i] * kernel_q));
-            _kernel[i] = round(_kernel[i] * kernel_q);
-            if(_kernel[i] > -0.00001 && _kernel[i] < 0.00001) 
-            {
-                _kernel[i]= 0.0f;
-            }
-        }
-        printf("quantize kernel [DONE]\n");
-      
-        int bias_size = _bias.h * _bias.w * _bias.c;
-        for (int i = 0; i < bias_size; i++) {
-            _bias[i] = _bias[i] * kernel_q * bottom_q;
-        }
-        printf("quantize bias [DONE]\n");
-    }
-
  
     int w = bottom_blob.w;
     int inch = bottom_blob.c;
@@ -105,10 +38,8 @@ static void conv3x3s1_sse(const Mat& bottom_blob_original, Mat& top_blob, const 
         Mat out = top_blob.channel(p);
 
         const float bias0 = bias ? bias[p] : 0.f;
-        //const float bias0 = 0.f;
 
         out.fill(bias0);
-        //out.fill(0.0);
 
         for (int q = 0; q < inch; q++)
         {
@@ -211,37 +142,6 @@ static void conv3x3s1_sse(const Mat& bottom_blob_original, Mat& top_blob, const 
             }
         }
     }
-
-    int top_blob_size = top_blob.c * top_blob.h * top_blob.w;
-    float top_blob_max = FLT_MIN;
-    float top_blob_min = FLT_MAX;
-    for (int i = 0; i < top_blob_size; i++)
-    {
-        if (top_blob[i] > top_blob_max) top_blob_max = top_blob[i];
-        if (top_blob[i] < top_blob_min) top_blob_min = top_blob[i];
-    }
-    printf("output min and max: %f : %f\n", top_blob_min, top_blob_max);
-
-    if (opt.use_net_quant == 8) 
-    {
-        for (int i = 0; i < top_blob_size; i++)
-        {
-            top_blob[i] = top_blob[i] * (1.0 / (kernel_q * bottom_q));
-        }
-        printf("de-quantize top_blob [DONE]\n");
-    }
-
-    //for (int p = 0; p < outch; p++)
-    //{
-    //    const float bias0 = bias ? bias[p] : 0.f;
-    //    Mat out = top_blob.channel(p);
-    //    //printf("%d %d %d\n", out.h, out.w, out.c);
-
-    //    for (int i = 0; i < out.h*out.w*out.c; i++) 
-    //    {
-    //        out[i]+=bias0;
-    //    }
-    //}
 }
 
 static void conv3x3s1_winograd23_transform_kernel_sse(const Mat& kernel, Mat& kernel_tm, int inch, int outch)
@@ -292,10 +192,12 @@ static void conv3x3s1_winograd23_transform_kernel_sse(const Mat& kernel, Mat& ke
     }
 }
 
-static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_blob, const Mat& kernel_tm_original, const Mat& _bias_original, const Option& opt, const Mat& kernel_original = NULL, int num_input = 0, int num_output = 0)
+static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_blob, const Mat& kernel_tm_original, const Mat& _bias_original, const Option& opt, const Mat* kernel_original = NULL, int num_input = 0, int num_output = 0)
 {
+    bool vb = opt.use_verbose_log; 
+
     Mat kernel_tm(kernel_tm_original);
-    Mat kernel(kernel_original);
+    Mat kernel(*kernel_original);
     Mat bottom_blob(bottom_blob_original);
     Mat _bias(_bias_original);
 
@@ -328,32 +230,33 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     float bottom_q = 127/bottom_t;
     //float kernel_q = 1;
     //float bottom_q = 1;
-    //if (bottom_min > -0.0001 && bottom_min < 0.0001) {
-    //    bottom_q = 255/bottom_t;
-    //} 
+    if (bottom_min > -0.0001 && bottom_min < 0.0001) {
+        bottom_q = 255/bottom_t;
+    } 
 
     if (opt.use_net_quant == 32) {
-        printf("***input/output: fp32***\n");
+        if (vb) printf("***input/output: fp32***\n");
     }
     else if (opt.use_net_quant <= 8)
     {
-        printf("***input/output: int***\n");
+        if (vb) printf("***input/output: int***\n");
 
         for (int i = 0; i < kernel_size; i++) {
             //printf("%f %f\n", kernel[i], round(kernel[i] * kernel_q));
             kernel[i] = round(kernel[i] * kernel_q);
             if (kernel[i] < 0.0000001 && kernel[i] > 0.0000001) kernel[i] = 0.0f;
         }
-        printf("quantize kernel [DONE]\n");
-        printf("num_input, num_output: %d %d\n", num_input, num_output);
+        if (vb) printf("quantize kernel [DONE]\n");
+        if (vb) printf("num_input, num_output: %d %d\n", num_input, num_output);
         conv3x3s1_winograd23_transform_kernel_sse(kernel, kernel_tm, num_input, num_output);
+        if (vb) printf("transform int8 kernel [DONE]\n");
 
         int bias_size = _bias.h * _bias.w * _bias.c;
         for (int i = 0; i < bias_size; i++) {
             //printf("%f %f\n", _bias[i], _bias[i] * kernel_q * bottom_q);
             _bias[i] = _bias[i] * kernel_q * bottom_q;
         }
-        printf("quantize bias [DONE]\n");
+        if (vb) printf("quantize bias [DONE]\n");
     }
    
     int w = bottom_blob.w;
@@ -385,16 +288,19 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
             bottom_blob_bordered[i] = round(bottom_blob_bordered[i] * bottom_q);
             //bottom_blob_bordered[i] = std::min(bottom_blob[i], 255.0f);
         }
-        printf("quantize input [DONE]\n");
+        if (vb) printf("quantize input [DONE]\n");
     }
 
     const float* bias = _bias;
 
-    if (opt.use_wino_quant == 32)
-        printf("***Convolution: wino23_fp32***\n");
+    if (opt.use_wino_quant == 32) 
+    {
+        if (vb) printf("***Convolution: wino23_fp32***\n");
+    }
     else if (opt.use_wino_quant <= 8)
-        printf("***Convolution: wino23_int%d***\n", opt.use_wino_quant);
- 
+    {
+        if (vb) printf("***Convolution: wino23_int%d***\n", opt.use_wino_quant);
+    }
     // BEGIN transform input
     Mat bottom_blob_tm;
     {
@@ -538,10 +444,10 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     int kernel_tm_size = kernel_tm.w * kernel_tm.h * kernel_tm.c;
     int bottom_tm_size = bottom_blob_tm.w * bottom_blob_tm.h * bottom_blob_tm.c; 
  
-    printf("kernel size: %d\n", kernel_size);
-    printf("input size: %d\n", bottom_size);
-    printf("kerner_tm size: %d\n", kernel_tm_size);
-    printf("input_tm size: %d\n", bottom_tm_size);
+    if (vb) printf("kernel size: %d\n", kernel_size);
+    if (vb) printf("input size: %d\n", bottom_size);
+    if (vb) printf("kerner_tm size: %d\n", kernel_tm_size);
+    if (vb) printf("input_tm size: %d\n", bottom_tm_size);
 
     for (int i = 0; i < kernel_tm_size; i++)
     {
@@ -554,20 +460,20 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (bottom_blob_tm[i] < bottom_tm_min) bottom_tm_min = bottom_blob_tm[i];
     }
 
-    printf("kernel min and max: %f : %f\n", kernel_min, kernel_max);
-    printf("input min and max: %f : %f\n", bottom_min, bottom_max);
-    printf("kernel_tm min and max: %f : %f\n", kernel_tm_min, kernel_tm_max);
-    printf("input_tm min and max: %f : %f\n", bottom_tm_min, bottom_tm_max);
+    if (vb) printf("kernel min and max: %f : %f\n", kernel_min, kernel_max);
+    if (vb) printf("input min and max: %f : %f\n", bottom_min, bottom_max);
+    if (vb) printf("kernel_tm min and max: %f : %f\n", kernel_tm_min, kernel_tm_max);
+    if (vb) printf("input_tm min and max: %f : %f\n", bottom_tm_min, bottom_tm_max);
 
     float kernel_tm_t = std::max(fabs(kernel_tm_min), fabs(kernel_tm_max));
     float bottom_tm_t = std::max(fabs(bottom_tm_min), fabs(bottom_tm_max));
 
-    printf("kernel_t: %f\n", kernel_t);
-    printf("input_t: %f\n", bottom_t);
-    printf("kernel_tm_t: %f\n", kernel_tm_t);
-    printf("input_tm_t: %f\n", bottom_tm_t);
-    printf("kernel_q: %f\n", kernel_q);
-    printf("input_q: %f\n", bottom_q);
+    if (vb) printf("kernel_t: %f\n", kernel_t);
+    if (vb) printf("input_t: %f\n", bottom_t);
+    if (vb) printf("kernel_tm_t: %f\n", kernel_tm_t);
+    if (vb) printf("input_tm_t: %f\n", bottom_tm_t);
+    if (vb) printf("kernel_q: %f\n", kernel_q);
+    if (vb) printf("input_q: %f\n", bottom_q);
  
     float kernel_tm_q = 127/kernel_tm_t;
     float bottom_tm_q = 127/bottom_tm_t;
@@ -578,12 +484,12 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         {
             bottom_blob_tm[i] = (int) round(bottom_blob_tm[i] * bottom_tm_q);
         }
-        printf("quantize input_tm [DONE]\n");
+        if (vb) printf("quantize input_tm [DONE]\n");
         for (int i = 0; i < kernel_tm_size; i++)
         {
             kernel_tm[i] = (int) round(kernel_tm[i] * kernel_tm_q);
         }
-        printf("quantize kernel_tm [DONE]\n");
+        if (vb) printf("quantize kernel_tm [DONE]\n");
     }
 
     // BEGIN dot
@@ -918,7 +824,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (top_blob_tm[i] > top_blob_tm_max) top_blob_tm_max = top_blob_tm[i];
         if (top_blob_tm[i] < top_blob_tm_min) top_blob_tm_min = top_blob_tm[i];
     }
-    printf("output_tm min and max: %f : %f\n", top_blob_tm_min, top_blob_tm_max);
+    if (vb) printf("output_tm min and max: %f : %f\n", top_blob_tm_min, top_blob_tm_max);
 
     if (opt.use_wino_flag == 1 && opt.use_wino_quant <= 8) 
     {
@@ -926,7 +832,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         {
             top_blob_tm[i] = top_blob_tm[i] * (1.0 / (kernel_tm_q * bottom_tm_q));
         }
-        printf("de-quantize top_blob_tm [DONE]\n");
+        if (vb) printf("de-quantize top_blob_tm [DONE]\n");
     }
 
     // BEGIN transform output
@@ -1018,9 +924,9 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     }
     // END transform output
 
-    printf("kernel_q: %f\n", kernel_q);
-    printf("input_q: %f\n", bottom_q);
-    printf("output_q: %f\n", 1 / (bottom_q * kernel_q));
+    if (vb) printf("kernel_q: %f\n", kernel_q);
+    if (vb) printf("input_q: %f\n", bottom_q);
+    if (vb) printf("output_q: %f\n", 1 / (bottom_q * kernel_q));
  
     int top_blob_bordered_size = top_blob_bordered.h * top_blob_bordered.w * top_blob_bordered.c;
     if (opt.use_net_quant == 8) 
@@ -1029,7 +935,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         {
             top_blob_bordered[i] = top_blob_bordered[i] * (1.0 / (kernel_q * bottom_q));
         }
-        printf("de-quantize top_blob [DONE]\n");
+        if (vb) printf("de-quantize top_blob [DONE]\n");
     }
 
     // cut result pad
@@ -1043,8 +949,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (top_blob[i] > top_blob_max) top_blob_max = top_blob[i];
         if (top_blob[i] < top_blob_min) top_blob_min = top_blob[i];
     }
-    printf("output min and max: %f : %f\n", top_blob_min, top_blob_max);
-
+    if (vb) printf("output min and max: %f : %f\n", top_blob_min, top_blob_max);
 
 }
 

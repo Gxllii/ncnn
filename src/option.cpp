@@ -51,10 +51,16 @@ Option::Option()
 
     use_bf16_storage = false;
 
-    // test
+    // wino test
     use_wino_flag = 1;
     use_wino_quant = 32;
     use_net_quant = 32;
+    use_verbose_log = false;
+    run_num = 0;
+    input_file = NULL;
+    output_file = NULL;
+    intput_tm_file = NULL;
+    output_tm_file = NULL;
 }
 
 } // namespace ncnn

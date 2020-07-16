@@ -112,6 +112,18 @@ public:
 
     // quantization outside wino-domain
     int use_net_quant;
+
+    // print detailed information in winograd conv
+    bool use_verbose_log;
+
+    // output file
+    char* input_file;
+    char* output_file;
+    char* intput_tm_file;
+    char* output_tm_file;
+    
+    //for grouped conv
+    int run_num; 
 };
 
 } // namespace ncnn
