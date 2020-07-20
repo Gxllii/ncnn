@@ -56,11 +56,14 @@ Option::Option()
     use_wino_quant = 32;
     use_net_quant = 32;
     use_verbose_log = false;
-    run_num = 0;
+    collect_flag = false;
     input_file = NULL;
     output_file = NULL;
-    intput_tm_file = NULL;
+    input_tm_file = NULL;
+    kernel_tm_file = NULL;
+    output_file = NULL;
     output_tm_file = NULL;
+    run_num = 0;
 }
 
 } // namespace ncnn

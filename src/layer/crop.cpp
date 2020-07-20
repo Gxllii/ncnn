@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "crop.h"
+#include <float.h>
+#include <limits.h>
 
 #include <algorithm>
 
@@ -59,13 +61,17 @@ static void copy_cut_border_image(const Mat& src, Mat& dst, int top, int left)
     const T* ptr = src.row<T>(top) + left;
     T* outptr = dst; //.data;
 
+    //printf("cut src w,h,c: %d %d %d\n", src.w, src.h, src.c);
+    //printf("cut dst w,h,c: %d %d %d\n", dst.w, dst.h, dst.c);
+
     for (int y = 0; y < h; y++)
     {
-        if (w < 12)
+        if (w < 12 || 1)
         {
             for (int x = 0; x < w; x++)
             {
                 outptr[x] = ptr[x];
+                //printf("%d: %f\n", x, ptr[x]);
             }
         }
         else
@@ -79,6 +85,7 @@ static void copy_cut_border_image(const Mat& src, Mat& dst, int top, int left)
 
 int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 {
+    bool vb = opt.use_verbose_log; 
     int w = bottom_blob.w;
     int h = bottom_blob.h;
     int channels = bottom_blob.c;
@@ -88,6 +95,9 @@ int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) cons
     int _woffset, _hoffset, _coffset;
     int _outw, _outh, _outc;
     resolve_crop_roi(bottom_blob.shape(), _woffset, _hoffset, _coffset, _outw, _outh, _outc);
+ 
+    if (vb) printf("in w,h,c and out w,h,c: %d,%d,%d %d,%d,%d\n", w, h, channels, _outw, _outh, _outc);
+    if (vb) printf("offset w,h,c: %d,%d,%d\n", _woffset, _hoffset, _coffset);
 
     if (dims == 1)
     {
@@ -156,7 +166,20 @@ int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) cons
         if (top_blob.empty())
             return -100;
 
-        #pragma omp parallel for num_threads(opt.num_threads)
+        if (vb) printf("crop_top_blob w,h,c: %d,%d,%d\n", top_blob.w, top_blob.h, top_blob.c);
+
+        top_blob.fill(0.0f);
+        int top_size = top_blob.c * top_blob.h * top_blob.w;
+        float top_max = FLT_MIN;
+        float top_min = FLT_MAX;
+        for (int i = 0; i < top_size; i++)
+        {
+            if (top_blob[i] > top_max) top_max = top_blob[i];
+            if (top_blob[i] < top_min) top_min = top_blob[i];
+        }
+        if (vb) printf("crop top min and max: %f : %f\n", top_min, top_max);
+ 
+        //#pragma omp parallel for num_threads(opt.num_threads)
         for (int q = 0; q < _outc; q++)
         {
             const Mat m = bottom_blob_sliced.channel(q);
@@ -170,6 +193,15 @@ int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) cons
                 copy_cut_border_image<float>(m, borderm, _hoffset, _woffset);
         }
 
+        top_max = FLT_MIN;
+        top_min = FLT_MAX;
+        for (int i = 0; i < top_size; i++)
+        {
+            if (top_blob[i] > top_max) top_max = top_blob[i];
+            if (top_blob[i] < top_min) top_min = top_blob[i];
+        }
+        if (vb) printf("crop dst min and max: %f : %f\n", top_min, top_max);
+ 
         return 0;
     }
 

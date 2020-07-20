@@ -22,6 +22,8 @@
 #include "layer_type.h"
 
 #include <math.h>
+#include <float.h>
+#include <limits.h>
 
 #if NCNN_VULKAN
 #if __ANDROID_API__ >= 26
@@ -329,11 +331,13 @@ void copy_make_border(const Mat& src, Mat& dst, int top, int bottom, int left, i
 
 void copy_cut_border(const Mat& src, Mat& dst, int top, int bottom, int left, int right, const Option& opt)
 {
+    bool vb = opt.use_verbose_log; 
     if (left + right > src.w || top + bottom > src.h)
     {
         NCNN_LOGE("copy_cut_border parameter error, top: %d, bottom: %d, left: %d, right: %d, src.w: %d, src.h: %d", top, bottom, left, right, src.w, src.h);
         return;
     }
+    if (vb) printf("copy_cut_border parameter, top: %d, bottom: %d, left: %d, right: %d, src.w: %d, src.h: %d\n", top, bottom, left, right, src.w, src.h);
     Layer* crop = create_layer(LayerType::Crop);
 
     ParamDict pd;
@@ -348,7 +352,28 @@ void copy_cut_border(const Mat& src, Mat& dst, int top, int bottom, int left, in
 
     crop->create_pipeline(opt);
 
+    int src_size = src.c * src.h * src.w;
+    float src_max = FLT_MIN;
+    float src_min = FLT_MAX;
+    for (int i = 0; i < src_size; i++)
+    {
+        if (src[i] > src_max) src_max = src[i];
+        if (src[i] < src_min) src_min = src[i];
+    }
+    if (vb) printf("copy cut src min and max: %f : %f\n", src_min, src_max);
+ 
     crop->forward(src, dst, opt);
+
+    int dst_size = dst.c * dst.h * dst.w;
+    float dst_max = FLT_MIN;
+    float dst_min = FLT_MAX;
+    for (int i = 0; i < dst_size; i++)
+    {
+        if (dst[i] > dst_max) dst_max = dst[i];
+        if (dst[i] < dst_min) dst_min = dst[i];
+    }
+    if (vb) printf("copy cut dst min and max: %f : %f\n", dst_min, dst_max);
+ 
 
     crop->destroy_pipeline(opt);
 

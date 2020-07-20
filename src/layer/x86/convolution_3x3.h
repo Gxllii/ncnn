@@ -210,29 +210,32 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (kernel[i] < kernel_min) kernel_min = kernel[i];
     }
 
-    float bottom_max = FLT_MIN;
-    float bottom_min = FLT_MAX;
-    int bottom_size = bottom_blob.w * bottom_blob.h * bottom_blob.c; 
-    for (int i = 0; i < bottom_size; i++)
-    {
-        if (bottom_blob[i] > bottom_max) bottom_max = bottom_blob[i];
-        if (bottom_blob[i] < bottom_min) bottom_min = bottom_blob[i];
-    }
-
-    float bottom_t = std::max(fabs(bottom_min), fabs(bottom_max));
     float kernel_t = std::max(fabs(kernel_min), fabs(kernel_max));
-
-    float bottom_s = bottom_t;
-    //float bottom_s = 500;
-    bottom_t = std::min(bottom_s, bottom_t);
-
     float kernel_q = 127/kernel_t;
-    float bottom_q = 127/bottom_t;
-    //float kernel_q = 1;
-    //float bottom_q = 1;
-    if (bottom_min > -0.0001 && bottom_min < 0.0001) {
-        bottom_q = 255/bottom_t;
-    } 
+
+    int bottom_size = bottom_blob.w * bottom_blob.h * bottom_blob.c; 
+    if (opt.collect_flag) {
+        char input_file_path[500];
+        sprintf(input_file_path, "./logs/input.txt");
+        FILE* out_file = fopen(input_file_path, "w");
+ 
+        for (int i = 0; i < bottom_size; i++)
+        {
+           fprintf(out_file, "%f\n", bottom_blob[i]); 
+        }
+        fclose(out_file);
+    }
+    if (opt.collect_flag) {
+        char kernel_file_path[500];    
+        sprintf(kernel_file_path, "./logs/kernel.txt");
+        FILE* out_file = fopen(kernel_file_path, "w");
+ 
+        for (int i = 0; i < kernel_size; i++)
+        {
+           fprintf(out_file, "%f\n", kernel[i]);
+        }
+        fclose(out_file);
+    }
 
     if (opt.use_net_quant == 32) {
         if (vb) printf("***input/output: fp32***\n");
@@ -250,13 +253,6 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (vb) printf("num_input, num_output: %d %d\n", num_input, num_output);
         conv3x3s1_winograd23_transform_kernel_sse(kernel, kernel_tm, num_input, num_output);
         if (vb) printf("transform int8 kernel [DONE]\n");
-
-        int bias_size = _bias.h * _bias.w * _bias.c;
-        for (int i = 0; i < bias_size; i++) {
-            //printf("%f %f\n", _bias[i], _bias[i] * kernel_q * bottom_q);
-            _bias[i] = _bias[i] * kernel_q * bottom_q;
-        }
-        if (vb) printf("quantize bias [DONE]\n");
     }
    
     int w = bottom_blob.w;
@@ -279,6 +275,24 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     opt_b.blob_allocator = opt.workspace_allocator;
     copy_make_border(bottom_blob, bottom_blob_bordered, 0, h - bottom_blob.h, 0, w - bottom_blob.w, 0, 0.f, opt_b);
 
+    float bottom_max = FLT_MIN;
+    float bottom_min = FLT_MAX;
+    int bottom_bordered_size = bottom_blob_bordered.w * bottom_blob_bordered.h * bottom_blob_bordered.c; 
+    for (int i = 0; i < bottom_bordered_size; i++)
+    {
+        if (bottom_blob_bordered[i] > bottom_max) bottom_max = bottom_blob_bordered[i];
+        if (bottom_blob_bordered[i] < bottom_min) bottom_min = bottom_blob_bordered[i];
+    }
+
+    float bottom_t = std::max(fabs(bottom_min), fabs(bottom_max));
+    float bottom_s = bottom_t;
+    //float bottom_s = 500;
+    bottom_t = std::min(bottom_s, bottom_t);
+    float bottom_q = 127/bottom_t;
+    if (bottom_min > -0.0001 && bottom_min < 0.0001) {
+        bottom_q = 255/bottom_t;
+    } 
+
     if (opt.use_net_quant == 8)
     {
         int bottom_blob_bordered_size = bottom_blob_bordered.h * bottom_blob_bordered.w * bottom_blob_bordered.c;
@@ -289,6 +303,14 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
             //bottom_blob_bordered[i] = std::min(bottom_blob[i], 255.0f);
         }
         if (vb) printf("quantize input [DONE]\n");
+
+        int bias_size = _bias.h * _bias.w * _bias.c;
+        for (int i = 0; i < bias_size; i++) {
+            //printf("%f %f\n", _bias[i], _bias[i] * kernel_q * bottom_q);
+            _bias[i] = _bias[i] * kernel_q * bottom_q;
+        }
+        if (vb) printf("quantize bias [DONE]\n");
+
     }
 
     const float* bias = _bias;
@@ -432,7 +454,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
             }
         }
     }
-    //bottom_blob_bordered = Mat();
+    bottom_blob_bordered = Mat();
 
     // kernel_tm;
     // top_blob_tm;
@@ -446,7 +468,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
  
     if (vb) printf("kernel size: %d\n", kernel_size);
     if (vb) printf("input size: %d\n", bottom_size);
-    if (vb) printf("kerner_tm size: %d\n", kernel_tm_size);
+    if (vb) printf("kernel_tm size: %d\n", kernel_tm_size);
     if (vb) printf("input_tm size: %d\n", bottom_tm_size);
 
     for (int i = 0; i < kernel_tm_size; i++)
@@ -464,6 +486,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
     if (vb) printf("input min and max: %f : %f\n", bottom_min, bottom_max);
     if (vb) printf("kernel_tm min and max: %f : %f\n", kernel_tm_min, kernel_tm_max);
     if (vb) printf("input_tm min and max: %f : %f\n", bottom_tm_min, bottom_tm_max);
+    if (vb) printf("%f, %f, %f, %f, , %f, %f, %f, %f\n", bottom_min, bottom_max, bottom_tm_min, bottom_tm_max, kernel_min, kernel_max, kernel_tm_min, kernel_tm_max);
 
     float kernel_tm_t = std::max(fabs(kernel_tm_min), fabs(kernel_tm_max));
     float bottom_tm_t = std::max(fabs(bottom_tm_min), fabs(bottom_tm_max));
@@ -477,6 +500,29 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
  
     float kernel_tm_q = 127/kernel_tm_t;
     float bottom_tm_q = 127/bottom_tm_t;
+
+    if (opt.collect_flag) {
+        char input_tm_file_path[500];
+        sprintf(input_tm_file_path, "./logs/input_tm.txt");
+        FILE* out_file = fopen(input_tm_file_path, "w");
+ 
+        for (int i = 0; i < bottom_tm_size; i++)
+        {
+           fprintf(out_file, "%f\n", bottom_blob_tm[i]); 
+        }
+        fclose(out_file);
+    }
+    if (opt.collect_flag) {
+        char kernel_tm_file_path[500];
+        sprintf(kernel_tm_file_path, "./logs/kernel_tm.txt");
+        FILE* out_file = fopen(kernel_tm_file_path, "w");
+
+        for (int i = 0; i < kernel_tm_size; i++)
+        {
+           fprintf(out_file, "%f\n", kernel_tm[i]);
+        }
+        fclose(out_file);
+    }
 
     if (opt.use_wino_quant == 8) 
     {
@@ -813,7 +859,7 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
             }
         }
     }
-    //bottom_blob_tm = Mat();
+    bottom_blob_tm = Mat();
     // END dot
 
     float top_blob_tm_max = FLT_MIN;
@@ -938,6 +984,15 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (vb) printf("de-quantize top_blob [DONE]\n");
     }
 
+    float top_blob_bordered_max = FLT_MIN;
+    float top_blob_bordered_min = FLT_MAX;
+    for (int i = 0; i < top_blob_bordered_size; i++)
+    {
+        if (top_blob_bordered[i] > top_blob_bordered_max) top_blob_bordered_max = top_blob_bordered[i];
+        if (top_blob_bordered[i] < top_blob_bordered_min) top_blob_bordered_min = top_blob_bordered[i];
+    }
+    if (vb) printf("output_bordered min and max: %f : %f\n", top_blob_bordered_min, top_blob_bordered_max);
+
     // cut result pad
     copy_cut_border(top_blob_bordered, top_blob, 0, top_blob_bordered.h - top_blob.h, 0, top_blob_bordered.w - top_blob.w, opt);
 
@@ -950,7 +1005,6 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
         if (top_blob[i] < top_blob_min) top_blob_min = top_blob[i];
     }
     if (vb) printf("output min and max: %f : %f\n", top_blob_min, top_blob_max);
-
 }
 
 static void conv3x3s1_winograd43_transform_kernel_sse(const Mat& kernel, std::vector<Mat>& kernel_tm2, int inch, int outch)

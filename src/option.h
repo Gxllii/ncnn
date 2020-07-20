@@ -117,9 +117,12 @@ public:
     bool use_verbose_log;
 
     // output file
+    bool collect_flag;
     char* input_file;
+    char* kernel_file;
+    char* input_tm_file;
+    char* kernel_tm_file;
     char* output_file;
-    char* intput_tm_file;
     char* output_tm_file;
     
     //for grouped conv
