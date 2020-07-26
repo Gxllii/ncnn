@@ -196,10 +196,14 @@ static void conv3x3s1_winograd23_sse(const Mat& bottom_blob_original, Mat& top_b
 {
     bool vb = opt.use_verbose_log; 
 
-    Mat kernel_tm(kernel_tm_original);
-    Mat kernel(*kernel_original);
-    Mat bottom_blob(bottom_blob_original);
-    Mat _bias(_bias_original);
+    //Mat kernel_tm(kernel_tm_original);
+    //Mat kernel(*kernel_original);
+    //Mat bottom_blob(bottom_blob_original);
+    //Mat _bias(_bias_original);
+    Mat kernel_tm = kernel_tm_original.clone();
+    Mat kernel = kernel_original->clone();
+    Mat bottom_blob = bottom_blob_original.clone();
+    Mat _bias = _bias_original.clone();
 
     float kernel_max = FLT_MIN;
     float kernel_min = FLT_MAX; 

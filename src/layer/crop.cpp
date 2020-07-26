@@ -66,7 +66,7 @@ static void copy_cut_border_image(const Mat& src, Mat& dst, int top, int left)
 
     for (int y = 0; y < h; y++)
     {
-        if (w < 12 || 1)
+        if (w < 12)
         {
             for (int x = 0; x < w; x++)
             {
@@ -166,7 +166,7 @@ int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) cons
         if (top_blob.empty())
             return -100;
 
-        if (vb) printf("crop_top_blob w,h,c: %d,%d,%d\n", top_blob.w, top_blob.h, top_blob.c);
+        if (vb) printf("crop_top_blob w,h,c elemsize: %d,%d,%d %d\n", top_blob.w, top_blob.h, top_blob.c, elemsize);
 
         top_blob.fill(0.0f);
         int top_size = top_blob.c * top_blob.h * top_blob.w;
@@ -191,12 +191,17 @@ int Crop::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) cons
                 copy_cut_border_image<unsigned short>(m, borderm, _hoffset, _woffset);
             if (elemsize == 4)
                 copy_cut_border_image<float>(m, borderm, _hoffset, _woffset);
+            //for (int i = 0; i < borderm.h * borderm.w * borderm.c; i++)
+            //{
+            //    printf("%d %d %f\n", q, i, borderm[i]);
+            //}
         }
 
         top_max = FLT_MIN;
         top_min = FLT_MAX;
         for (int i = 0; i < top_size; i++)
         {
+            //printf("%d %f\n", i, top_blob[i]);
             if (top_blob[i] > top_max) top_max = top_blob[i];
             if (top_blob[i] < top_min) top_min = top_blob[i];
         }
